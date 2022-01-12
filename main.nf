@@ -86,7 +86,8 @@ process ant_thony {
     set val(sample_name), file(swarms) from all_swarms
     
     output:
-    set val(sample_name), file("*") into ant_thony_out
+    set val(sample_name), file("*.pdb") into ant_thony_out
+    file("top_ranked_by_scores.csv") into scores
 
     script:
     // TODO: Add filtering
@@ -97,5 +98,9 @@ process ant_thony {
     ant_thony.py -c $task.cpus generate_lightdock.list
     ant_thony.py -c $task.cpus cluster_lightdock.list
     lgd_rank.py ${params.swarms} ${params.steps}
+    get_top.py --scores_path rank_by_scoring.list --pdb_code $sample_name --out_path top_ranked_by_scores.csv
     """
 }
+
+scores
+  .collectFile(name: "${params.outdir}/top_ranked_by_scores.csv", keepHeader: true, skip: 1)
