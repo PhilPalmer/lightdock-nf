@@ -1,2 +1,2 @@
 # lightdock-nf
-Nextflow pipeline to LightDock for protein-protein docking
+Nextflow pipeline to run LightDock for protein-protein docking
