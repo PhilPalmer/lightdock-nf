@@ -36,11 +36,11 @@ process lightdock {
     set val(sample_name), file(receptor_pdb), file(ligand_pdb) from pdbs
     
     output:
-    set val(sample_name), file(receptor_pdb), file(ligand_pdb), file("lightdock*"), file("swarm_*") into swarms
+    set val(sample_name), file(receptor_pdb), file(ligand_pdb), file("{setup,lightdock,init}*"), file("swarm_*") into swarms
 
     script:
     """
-    lightdock3_setup.py $receptor_pdb $ligand_pdb -s $params.swarms -g $params.glowworms
+    lightdock3_setup.py $receptor_pdb $ligand_pdb -s $params.swarms -g $params.glowworms --noxt --noh --now
     lightdock3.py setup.json $params.steps
     """
 }
@@ -56,7 +56,6 @@ swarms
     .flatMap()
     .set { samples_swarms}
 
-
 process ldg {
     tag "$sample_name $swarm"
     publishDir "${params.outdir}/${sample_name}", mode: 'copy'
@@ -65,13 +64,38 @@ process ldg {
     set val(sample_name), file(receptor_pdb), file(ligand_pdb), file(lightdock), file(swarm) from samples_swarms
     
     output:
-    set val(sample_name), file("${swarm}/*") into lgd_out
+    set val(sample_name), file(swarm) into lgd_out
 
     script:
     """
     cd $swarm
-    lgd_generate_conformations.py ../${receptor_pdb} ../${ligand_pdb} gso_${params.steps}.out $params.glowworms
-    lgd_cluster_bsas.py gso_${params.steps}.out
+    lgd_generate_conformations.py ../${receptor_pdb} ../${ligand_pdb} gso_${params.steps}.out $params.glowworms > /dev/null 2> /dev/null >> generate_lightdock.list
+    lgd_cluster_bsas.py gso_${params.steps}.out > /dev/null 2> /dev/null >> cluster_lightdock.list
+    """
+}
+
+lgd_out
+    .groupTuple()
+    .set { all_swarms }
+
+process ant_thony {
+    tag "$sample_name"
+    publishDir "${params.outdir}/${sample_name}", mode: 'copy'
+
+    input:
+    set val(sample_name), file(swarms) from all_swarms
+    
+    output:
+    set val(sample_name), file("*") into ant_thony_out
+
+    script:
+    // TODO: Add filtering
+    // lgd_filter_restraints.py --cutoff 5.0 --fnat 0.4 rank_by_scoring.list restraints.list A B > /dev/null 2> /dev/null
+    """
+    cat swarm*/generate_lightdock.list > generate_lightdock.list
+    cat swarm*/cluster_lightdock.list > cluster_lightdock.list
+    ant_thony.py -c $task.cpus generate_lightdock.list
+    ant_thony.py -c $task.cpus cluster_lightdock.list
     lgd_rank.py ${params.swarms} ${params.steps}
     """
 }
