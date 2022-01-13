@@ -4,10 +4,10 @@ def helpMessage() {
     log.info """
     Usage:
     The typical command for running the pipeline is as follows:
-    nextflow run main.nf --input_pdbs input_pdbs.csv
+    nextflow run main.nf --pdb_paths input_pdbs.csv
 
     Inputs Options:
-    --input_pdbs    CSV input file containing the list of pairwise receptor ligand PDB filepaths to be processed.
+    --pdb_paths     CSV input file containing the list of pairwise receptor ligand PDB filepaths to be processed.
     --swarms        Number of swarms/simulations to run
     --glowworms     Number of glowworms/agents to run per swarm
     --steps         Number of steps of the simulation
@@ -56,7 +56,7 @@ swarms
     .flatMap()
     .set { samples_swarms}
 
-process ldg {
+process cluster_conformations {
     tag "$sample_name $swarm"
     publishDir "${params.outdir}/${sample_name}", mode: 'copy'
 
@@ -64,7 +64,7 @@ process ldg {
     set val(sample_name), file(receptor_pdb), file(ligand_pdb), file(lightdock), file(swarm) from samples_swarms
     
     output:
-    set val(sample_name), file(swarm) into lgd_out
+    set val(sample_name), file(swarm) into clustered_conformations
 
     script:
     """
@@ -74,19 +74,19 @@ process ldg {
     """
 }
 
-lgd_out
+clustered_conformations
     .groupTuple()
-    .set { all_swarms }
+    .set { all_clustered_conformations }
 
-process ant_thony {
+process rank_conformations {
     tag "$sample_name"
     publishDir "${params.outdir}/${sample_name}", mode: 'copy'
 
     input:
-    set val(sample_name), file(swarms) from all_swarms
+    set val(sample_name), file(swarms) from all_clustered_conformations
     
     output:
-    set val(sample_name), file("*.pdb") into ant_thony_out
+    set val(sample_name), file("*") into ranked_conformations
     file("top_ranked_by_scores.csv") into scores
 
     script:
